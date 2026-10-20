@@ -88,7 +88,7 @@ fun QRScannerScreen(onOpenGames: () -> Unit = {}) {
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text("Games Hub", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text("GridBlocks and more offline games", fontSize = 9.sp, color = MonoGray)
+                Text("GridBlocks and more games", fontSize = 9.sp, color = MonoGray)
             }
             Icon(Icons.Default.ChevronRight, contentDescription = null)
         }
