@@ -1,0 +1,9 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. Framework Material dark (field-use dark UI),
+         no Material Components AAR required. -->
+    <style name="Theme.ForensicToolkit" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF101418</item>
+        <item name="android:statusBarColor">#FF0B0E12</item>
+        <item name="android:navigationBarColor">#FF0B0E12</item>
+    </style>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ecrew_bg">#FF10171A</color>
+    <color name="ecrew_surface">#FF1B2529</color>
+    <color name="ecrew_text">#FFE6F1F3</color>
+    <color name="ecrew_text_dim">#FF9FB3B8</color>
+    <color name="ecrew_cyan">#FF00BCD4</color>
+    <color name="ecrew_on_cyan">#FF062A30</color>
+    <color name="ecrew_red">#FFE53935</color>
+    <color name="ecrew_error">#FFFF6E6E</color>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher icon: teal tile with a white shield + keyhole (agent visual identity). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF0E7C86"
+        android:pathData="M24,8 H84 C92.8,8 100,15.2 100,24 V84 C100,92.8 92.8,100 84,100 H24 C15.2,100 8,92.8 8,84 V24 C8,15.2 15.2,8 24,8 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,22 L76,30.5 V47 C76,62 66.4,74.3 54,78 C41.6,74.3 32,62 32,47 V30.5 Z M54,39 a6,6 0 1 0 0,12 a6,6 0 1 0 0,-12 Z M51.5,53 L56.5,53 L56.5,65 L51.5,65 Z" />
+</vector>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">E-Crew Agent</string>
+
+    <string name="consent_title">E-Crew Remote Support</string>
+    <string name="consent_subtitle">Authorized Use Only</string>
+    <string name="consent_body">This application allows a remote operator to view this device\'s screen and to send touch input, text, and system navigation commands during a session only, over your local network or Bluetooth.\n\nBy enabling remote support you confirm that you are the owner of this device or that you have documented legal authorization from the owner, and that you consent to the operator seeing everything shown on the screen during the session.\n\nHow sessions work:\n1. A 6-digit pairing code is generated and shown on this device. Only someone who can read this code can start a session.\n2. A persistent notification is always displayed while remote support is listening or active. It names the operator and offers an End session action.\n3. Screen streaming starts only after you explicitly accept the system screen-capture dialog. If you decline, no frames are sent.\n4. During a session the operator can request this device\'s installed-app list (app name, package ID, version, and whether it is a system app). The list is sent only when requested, is never saved by either side, and the request and result count are recorded in the audit log.\n5. You can end the session at any time from the notification; nothing keeps running afterwards.\n\nADB note: if USB debugging (ADB) is enabled, the optional hardening toggle below can refuse new sessions while ADB stays on. The default allows sessions with ADB enabled because operators often need ADB during legitimate support work.\n\nPrivacy: there are no external servers of any kind. Sessions travel through your local network or Bluetooth and are always AES-256-GCM encrypted. Audio is never recorded, files are never transferred, and screen frames exist only during an active session. The installed-app list is read-only metadata served only on request during a session.\n</string>
+
+    <string name="consent_operator_label">Operator name</string>
+    <string name="consent_check">I am the owner of this device or have documented legal authorization.</string>
+    <string name="consent_adb_toggle">Refuse new sessions while ADB is enabled (optional hardening)</string>
+    <string name="consent_enable">Enable Remote Support</string>
+    <string name="consent_retry">Retry</string>
+    <string name="consent_cancel">Cancel</string>
+    <string name="consent_error_accessibility">Accessibility access is still disabled. Enable \"E-Crew Agent\" in the Accessibility settings, then tap Retry.</string>
+    <string name="consent_error_fields">Enter the operator name and confirm the authorization checkbox.</string>
+
+    <string name="status_title">Remote support status</string>
+    <string name="status_model_label">Device: %1$s</string>
+    <string name="status_code_label">Pairing code (read this to the operator)</string>
+    <string name="status_listening_label">Listening</string>
+    <string name="status_state_idle">Not listening. Tap Start to accept an operator.</string>
+    <string name="status_state_waiting">Waiting for operator to pair.</string>
+    <string name="status_state_active">Session active with %1$s.</string>
+    <string name="status_state_capturing">Session active with %1$s. Screen streaming.</string>
+    <string name="status_start">Start listening</string>
+    <string name="status_stop">Stop listening</string>
+    <string name="status_new_code">New code</string>
+    <string name="status_end_session">End session</string>
+    <string name="status_accessibility_settings">Accessibility settings</string>
+    <string name="status_privacy_note">A notification is always shown while this agent is listening or in a session. Never leave the device unattended during remote support.</string>
+    <string name="status_code_burned">Too many wrong attempts. A new code was generated.</string>
+    <string name="status_adb_refused">ADB hardening is enabled and ADB is on: new sessions are refused until USB debugging is turned off.</string>
+
+    <string name="notification_channel_name">Remote support</string>
+    <string name="notification_channel_description">Persistent status of E-Crew Remote Support sessions.</string>
+    <string name="notification_waiting_title">E-Crew Remote Support listening</string>
+    <string name="notification_waiting_text">Waiting for the operator to pair with code %1$s.</string>
+    <string name="notification_active_title">E-Crew Remote Support active</string>
+    <string name="notification_active_text">Session controlled by %1$s</string>
+    <string name="notification_end_session">End session</string>
+
+    <string name="accessibility_service_label">E-Crew Remote Support</string>
+    <string name="accessibility_service_summary">Lets a consented operator for this device send taps, swipes, and text during a session you explicitly start.</string>
+    <string name="accessibility_service_description">E-Crew Remote Support can perform the following during a session that you explicitly start and can end at any time: observe the active window content, send taps and swipes, set text in focused fields, and trigger standard navigation actions (Back/Home/Recents/Notifications). It never processes events outside a session.</string>
+</resources>

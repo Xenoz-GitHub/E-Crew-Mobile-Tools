@@ -1,0 +1,20 @@
+# Normalize text files across platforms.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.so binary
+*.a binary
+
+# The bundled Xairex model is larger than the GitHub file-size limit and is stored
+# with Git LFS. Run "git lfs pull" after cloning.
+app/src/main/assets/models/*.gguf filter=lfs diff=lfs merge=lfs -text

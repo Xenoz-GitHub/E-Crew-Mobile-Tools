@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/consent_title"
+            android:textColor="@color/ecrew_text"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:letterSpacing="0.08"
+            android:text="@string/consent_subtitle"
+            android:textAllCaps="true"
+            android:textColor="@color/ecrew_cyan"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:lineSpacingExtra="4dp"
+            android:text="@string/consent_body"
+            android:textColor="@color/ecrew_text_dim"
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/operator_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:hint="@string/consent_operator_label"
+            android:importantForAutofill="no"
+            android:inputType="textPersonName"
+            android:maxLength="64"
+            android:maxLines="1" />
+
+        <CheckBox
+            android:id="@+id/consent_check"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/consent_check"
+            android:textColor="@color/ecrew_text"
+            android:textSize="14sp" />
+
+        <CheckBox
+            android:id="@+id/adb_toggle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/consent_adb_toggle"
+            android:textColor="@color/ecrew_text"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/error_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/ecrew_error"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/enable_button"
+            style="@style/EcrewPrimaryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/consent_enable" />
+
+        <Button
+            android:id="@+id/retry_button"
+            style="@style/EcrewSecondaryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/consent_retry"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/cancel_button"
+            style="@style/EcrewSecondaryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/consent_cancel" />
+
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,27 @@
+// E-Crew Remote Support - shared protocol module.
+// Plain Kotlin/JVM library: NO Android dependencies so the entire security core
+// (crypto, framing, handshake, messages, input normalization) is unit-testable on the JVM.
+//
+// Uses the legacy plugin application style on purpose (recorded decision D6 in
+// notes/2026-10-19-0513-remote-support-design.md): both plugins are already resolved on the
+// root buildscript classpath, so no plugin-marker downloads happen and the build stays
+// deterministic/offline-friendly.
+
+apply plugin: 'java-library'
+apply plugin: 'org.jetbrains.kotlin.jvm'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = '11'
+        freeCompilerArgs += ['-Xjvm-default=all']
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}

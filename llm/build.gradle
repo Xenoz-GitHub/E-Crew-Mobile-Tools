@@ -1,0 +1,36 @@
+plugins {
+    id 'com.android.library'
+}
+
+// Native-only module: vendors llama.cpp (MIT, see third_party/llama.cpp/LICENSE) and
+// builds libecrew-llm.so for the assistant engine. No Kotlin/Java sources here; the JNI
+// surface is declared in :app (com.ecrew.toolkit.ai.LlamaNative).
+android {
+    namespace 'com.ecrew.toolkit.llm'
+    compileSdk 34
+
+    // Pinned to match the NDK used for the vendored llama.cpp build (Component 12).
+    // r26 (not r27) because AGP 8.1 does not understand r27's riscv64 ABI metadata and
+    // prints "Ignoring invalid ABI" warnings on every native task.
+    ndkVersion '26.3.11579264'
+
+    defaultConfig {
+        minSdk 26
+
+        ndk {
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}

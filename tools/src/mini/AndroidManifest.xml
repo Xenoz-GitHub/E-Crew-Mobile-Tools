@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.mini"
+    android:versionCode="7"
+    android:versionName="1.2.3">
+
+    <uses-sdk
+        android:minSdkVersion="26"
+        android:targetSdkVersion="26" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <permission
+        android:name="com.example.mini.SERVICE_PERMISSION"
+        android:protectionLevel="signature" />
+
+    <application
+        android:allowBackup="true"
+        android:debuggable="true"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ImplicitActivity"
+            android:label="@string/implicit_label">
+            <intent-filter>
+                <action android:name="com.example.mini.OPEN" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".PrivateActivity"
+            android:exported="false" />
+
+        <service
+            android:name=".ExportedService"
+            android:exported="true"
+            android:permission="com.example.mini.SERVICE_PERMISSION" />
+
+        <service
+            android:name=".PrivateService"
+            android:exported="false" />
+
+        <receiver
+            android:name=".ExportedReceiver"
+            android:exported="true"
+            android:permission="com.example.mini.SERVICE_PERMISSION">
+            <intent-filter>
+                <action android:name="com.example.mini.PING" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".ImplicitReceiver">
+            <intent-filter>
+                <action android:name="com.example.mini.IMPLICIT_PING" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".PrivateReceiver"
+            android:exported="false" />
+
+        <provider
+            android:name=".MiniProvider"
+            android:authorities="com.example.mini.provider"
+            android:exported="true"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <provider
+            android:name=".PrivateProvider"
+            android:authorities="com.example.mini.private"
+            android:exported="false" />
+
+        <meta-data
+            android:name="com.example.mini.ENVIRONMENT"
+            android:value="fixture" />
+
+        <meta-data
+            android:name="com.example.mini.DISPLAY"
+            android:value="Caf&#233; &#x1F600;" />
+
+        <meta-data
+            android:name="com.example.mini.ESCAPES"
+            android:value="a &lt; b &amp; c" />
+    </application>
+</manifest>

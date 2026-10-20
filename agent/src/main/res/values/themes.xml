@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Framework Material theme only: no Material Components dependency (size + honesty). -->
+    <style name="Theme.EcrewAgent" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorPrimary">@color/ecrew_surface</item>
+        <item name="android:colorPrimaryDark">@color/ecrew_bg</item>
+        <item name="android:colorAccent">@color/ecrew_cyan</item>
+        <item name="android:windowBackground">@color/ecrew_bg</item>
+        <item name="android:textColorPrimary">@color/ecrew_text</item>
+        <item name="android:textColorSecondary">@color/ecrew_text_dim</item>
+        <item name="android:textColorHint">@color/ecrew_text_dim</item>
+        <item name="android:statusBarColor">@color/ecrew_bg</item>
+    </style>
+
+    <style name="EcrewPrimaryButton">
+        <item name="android:backgroundTint">@color/ecrew_cyan</item>
+        <item name="android:textColor">@color/ecrew_on_cyan</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="EcrewSecondaryButton">
+        <item name="android:backgroundTint">@color/ecrew_surface</item>
+        <item name="android:textColor">@color/ecrew_text</item>
+    </style>
+
+    <style name="EcrewDangerButton">
+        <item name="android:backgroundTint">@color/ecrew_red</item>
+        <item name="android:textColor">@color/ecrew_text</item>
+    </style>
+</resources>

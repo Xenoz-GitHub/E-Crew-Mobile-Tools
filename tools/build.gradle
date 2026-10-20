@@ -1,0 +1,248 @@
+plugins {
+    id 'java'
+}
+
+// This module ships no code. It builds the committed APK fixture used by the pure-JVM APK
+// Analysis tests (design note 2026-10-19-2336-advanced-apk-analysis-design.md section 10).
+// The task uses the SDK's javac, aapt2 and d8 at build time only; the app itself never shells
+// out to a binary for parsing.
+
+def sdkDir = {
+    def props = new Properties()
+    def propsFile = rootProject.file('local.properties')
+    if (propsFile.exists()) {
+        propsFile.withInputStream { props.load(it) }
+    }
+    def value = props.getProperty('sdk.dir') ?:
+        System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT')
+    if (!value) {
+        throw new GradleException('Android SDK not found; set sdk.dir in local.properties.')
+    }
+    return new File(value.replace('\\', '/'))
+}
+
+def buildToolsDir = {
+    def root = new File(sdkDir(), 'build-tools')
+    def dirs = root.listFiles()?.findAll { it.isDirectory() }
+    if (!dirs) {
+        throw new GradleException('No Android build-tools installed.')
+    }
+    // Prefer the version matching compileSdk 34 for reproducible fixture output; fall back to
+    // the highest installed version on machines that only have another build-tools revision.
+    def pinned = new File(root, '34.0.0')
+    if (pinned.isDirectory()) {
+        return pinned
+    }
+    return dirs.sort { it.name }.last()
+}
+
+def fixtureDir = rootProject.file('app/src/test/resources/fixtures')
+def miniSourceDir = file('src/mini')
+def fixtureApk = new File(fixtureDir, 'mini.apk')
+def fixtureHash = new File(fixtureDir, 'mini.apk.sha256')
+
+def runTool = { List<String> command, File directory ->
+    def builder = new ProcessBuilder(command)
+    builder.directory(directory)
+    builder.redirectErrorStream(true)
+    def process = builder.start()
+    def output = process.inputStream.getText('UTF-8')
+    def exit = process.waitFor()
+    if (exit != 0) {
+        throw new GradleException("Command failed (exit $exit): ${command.join(' ')}\n$output")
+    }
+    return output
+}
+
+def sha256 = { File file ->
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    return digest.digest(file.bytes)
+        .collect { String.format('%02x', it & 0xff) }
+        .join()
+}
+
+tasks.register('buildMiniApk') {
+    group = 'fixture'
+    description = 'Builds the committed AXML/ARSC/DEX test fixture (javac + aapt2 + d8).'
+    inputs.dir(miniSourceDir)
+    outputs.file(fixtureApk)
+    outputs.file(fixtureHash)
+
+    doLast {
+        if (!miniSourceDir.isDirectory()) {
+            throw new GradleException("Missing fixture sources: $miniSourceDir")
+        }
+        def sdk = sdkDir()
+        def buildTools = buildToolsDir()
+        def androidJar = new File(sdk, 'platforms/android-34/android.jar')
+        if (!androidJar.exists()) {
+            throw new GradleException("Missing $androidJar")
+        }
+        def aapt2 = new File(buildTools, 'aapt2.exe')
+        def d8Jar = new File(buildTools, 'lib/d8.jar')
+        def javaHome = new File(System.getProperty('java.home'))
+        def javac = new File(javaHome, 'bin/javac.exe')
+        def java = new File(javaHome, 'bin/java.exe')
+        for (tool in [aapt2, d8Jar, javac, java]) {
+            if (!tool.exists()) {
+                throw new GradleException("Missing build tool: $tool")
+            }
+        }
+
+        def work = layout.buildDirectory.dir('mini').get().asFile
+        work.deleteDir()
+        def genDir = new File(work, 'gen')
+        def classesDir = new File(work, 'classes')
+        def dexDir = new File(work, 'dex')
+        def compiledRes = new File(work, 'compiled.zip')
+        def linkedApk = new File(work, 'linked.apk')
+        for (dir in [genDir, classesDir, dexDir]) {
+            dir.mkdirs()
+        }
+
+        def resDir = new File(miniSourceDir, 'res')
+        def manifest = new File(miniSourceDir, 'AndroidManifest.xml')
+        runTool([
+            aapt2.absolutePath, 'compile', '--dir', resDir.absolutePath,
+            '-o', compiledRes.absolutePath
+        ], work)
+        runTool([
+            aapt2.absolutePath, 'link',
+            '-o', linkedApk.absolutePath,
+            '-I', androidJar.absolutePath,
+            '--manifest', manifest.absolutePath,
+            '-R', compiledRes.absolutePath,
+            '--java', genDir.absolutePath,
+            '--min-sdk-version', '26',
+            '--target-sdk-version', '26',
+            '--auto-add-overlay'
+        ], work)
+
+        def javaSources = []
+        javaSources.addAll(fileTree(new File(miniSourceDir, 'java')) {
+            include '**/*.java'
+        }.files)
+        javaSources.addAll(fileTree(genDir) { include '**/*.java' }.files)
+        if (javaSources.isEmpty()) {
+            throw new GradleException('No fixture Java sources found.')
+        }
+        runTool([
+            javac.absolutePath, '--release', '11', '-classpath', androidJar.absolutePath,
+            '-d', classesDir.absolutePath
+        ] + javaSources.collect { it.absolutePath }, work)
+
+        def classFiles = fileTree(classesDir) { include '**/*.class' }.files
+        if (classFiles.isEmpty()) {
+            throw new GradleException('javac produced no classes.')
+        }
+        runTool([
+            java.absolutePath, '-cp', d8Jar.absolutePath, 'com.android.tools.r8.D8',
+            '--min-api', '26', '--lib', androidJar.absolutePath,
+            '--output', dexDir.absolutePath
+        ] + classFiles.collect { it.absolutePath }, work)
+        def dexFile = new File(dexDir, 'classes.dex')
+        if (!dexFile.exists()) {
+            throw new GradleException('d8 produced no classes.dex.')
+        }
+
+        def entries = new TreeMap<String, byte[]>()
+        new java.util.zip.ZipFile(linkedApk).withCloseable { zip ->
+            for (entry in zip.entries()) {
+                if (!entry.isDirectory()) {
+                    entries.put(entry.name, zip.getInputStream(entry).bytes)
+                }
+            }
+        }
+        entries.put('classes.dex', dexFile.bytes)
+
+        def fixedTime = new java.util.GregorianCalendar(2020, java.util.Calendar.JANUARY, 1)
+            .getTimeInMillis()
+        def rebuilt = new File(work, 'mini.apk')
+        new java.util.zip.ZipOutputStream(new FileOutputStream(rebuilt)).withCloseable { zip ->
+            zip.setLevel(java.util.zip.Deflater.BEST_COMPRESSION)
+            for (entry in entries) {
+                def zipEntry = new java.util.zip.ZipEntry(entry.key)
+                zipEntry.time = fixedTime
+                zip.putNextEntry(zipEntry)
+                zip.write(entry.value)
+                zip.closeEntry()
+            }
+        }
+
+        fixtureDir.mkdirs()
+        java.nio.file.Files.copy(
+            rebuilt.toPath(), fixtureApk.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING
+        )
+        def hash = sha256(fixtureApk)
+        fixtureHash.text = hash + '\n'
+        logger.lifecycle("mini.apk: ${fixtureApk.length()} bytes sha256=$hash")
+    }
+}
+
+tasks.register('verifyMiniApk') {
+    group = 'fixture'
+    description = 'Verifies the committed mini.apk against its recorded SHA-256 sidecar.'
+    inputs.file(fixtureApk)
+    inputs.file(fixtureHash)
+    doLast {
+        if (!fixtureApk.exists() || !fixtureHash.exists()) {
+            throw new GradleException('mini.apk fixture is missing; run :tools:buildMiniApk.')
+        }
+        def expected = fixtureHash.text.trim()
+        def actual = sha256(fixtureApk)
+        if (expected != actual) {
+            throw new GradleException(
+                "mini.apk hash mismatch: expected $expected, actual $actual. " +
+                'Regenerate deliberately with :tools:buildMiniApk and update the fixture test hash.'
+            )
+        }
+        logger.lifecycle("mini.apk hash OK: $actual")
+    }
+}
+
+// GRIDSHOCK assets are committed so app builds stay offline. This task pins the exact
+// generated bytes; regenerate deliberately with `python tools/gridshock_assets.py` and
+// refresh tools/gridshock-assets.lock in the same change.
+tasks.register('verifyGridshockAssets') {
+    group = 'verification'
+    description = 'Verifies committed GRIDSHOCK WAV/PNG assets against the lock file.'
+    inputs.file(rootProject.file('tools/gridshock-assets.lock'))
+    inputs.files(
+        rootProject.fileTree('app/src/main/res/raw') { include '*.wav' },
+        rootProject.fileTree('app/src/main/res/drawable-nodpi') { include '*.png' }
+    )
+    doLast {
+        def lock = rootProject.file('tools/gridshock-assets.lock')
+        if (!lock.exists()) {
+            throw new GradleException('Missing tools/gridshock-assets.lock')
+        }
+        def failures = []
+        lock.eachLine('UTF-8') { line ->
+            if (!line.trim() || line.startsWith('#')) return
+            def parts = line.split(/\s+/, 2)
+            if (parts.length != 2) {
+                throw new GradleException("Malformed lock line: $line")
+            }
+            def expected = parts[0].trim()
+            def target = rootProject.file(parts[1].trim())
+            if (!target.exists()) {
+                failures.add("missing ${parts[1]}")
+                return
+            }
+            def digest = java.security.MessageDigest.getInstance('SHA-256')
+            def actual = digest.digest(target.bytes)
+                .collect { String.format('%02x', it & 0xff) }
+                .join()
+            if (actual != expected) {
+                failures.add("hash mismatch for ${parts[1]}")
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new GradleException(
+                "GRIDSHOCK asset verification failed:\n" + failures.join('\n')
+            )
+        }
+        logger.lifecycle('GRIDSHOCK assets: 13/13 SHA-256 hashes OK')
+    }
+}

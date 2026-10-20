@@ -1,0 +1,40 @@
+{
+  "type": "bundle",
+  "id": "bundle--ecrew-mini-indicators-1",
+  "spec_version": "2.1",
+  "objects": [
+    {
+      "type": "indicator",
+      "id": "indicator--ecrew-frida-server-path",
+      "name": "Frida server in a world-writable location",
+      "description": "Dual-use instrumentation binary. Presence is a finding, not proof of compromise.",
+      "pattern": "[file:path = '/data/local/tmp/frida-server']",
+      "pattern_type": "stix",
+      "valid_from": "2026-10-19T00:00:00Z",
+      "x_ecrew_severity": "high",
+      "labels": ["dual-use", "instrumentation"]
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--ecrew-su-xbin",
+      "name": "Legacy su binary in /system/xbin",
+      "description": "Indicates a modified or rooted system image; may be a legitimate operator change.",
+      "pattern": "[file:path = '/system/xbin/su']",
+      "pattern_type": "stix",
+      "valid_from": "2026-10-19T00:00:00Z",
+      "x_ecrew_severity": "medium",
+      "labels": ["dual-use", "root"]
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--ecrew-debuggable-property",
+      "name": "Debuggable system property",
+      "description": "ro.debuggable=1 indicates an engineering or modified build.",
+      "pattern": "[android-property:value = 'ro.debuggable=1']",
+      "pattern_type": "stix",
+      "valid_from": "2026-10-19T00:00:00Z",
+      "x_ecrew_severity": "medium",
+      "labels": ["configuration"]
+    }
+  ]
+}

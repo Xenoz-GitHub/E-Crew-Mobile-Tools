@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Remote Support FileProvider paths (authority com.ecrew.toolkit.fileprovider). -->
+<paths>
+    <!-- Extracted agent APK handed to the Bluetooth share app (Send Agent screen). -->
+    <cache-path name="remote" path="remote/" />
+    <!-- Per-session audit JSONL files (shareable from the Audit screen if ever needed). -->
+    <files-path name="audit" path="audit/" />
+    <!-- Encrypted AndroidQF acquisitions only; plaintext ZIPs are never shared. -->
+    <cache-path name="acquisition" path="acquisition/" />
+    <!-- Inert, generated Frida scripts; shared only on explicit user action. -->
+    <files-path name="interception" path="interception/" />
+</paths>

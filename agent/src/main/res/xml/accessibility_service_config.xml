@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Capability surface intentionally minimal:
+     - flagDefault: no extra accessibility flags.
+     - Only window-state events; input injection is command-driven, not event-driven.
+     - canPerformGestures: taps/swipes via dispatchGesture.
+     - canRetrieveWindowContent: needed for ACTION_SET_TEXT on the focused node.
+     Note (recorded deviation D8): an accessibility service is always "disabled" until the
+     user enables it in system Settings; `flagDefault` does not disable it. The consent
+     gate is enforced in onServiceConnected (disableSelf without recorded consent). -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="100"
+    android:summary="@string/accessibility_service_summary" />

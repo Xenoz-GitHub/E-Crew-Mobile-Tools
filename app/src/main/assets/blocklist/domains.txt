@@ -1,0 +1,22 @@
+# Forensic Toolkit - offline domain blocklist (sample, bundled with the APK)
+# Format: one domain per line. '#' starts a comment.
+# A candidate matches if it equals an entry OR is a sub-domain of an entry.
+# Operators can extend this list at runtime in files/blocklist/custom.txt.
+#
+# The entries below are Google Safe Browsing OFFICIAL test indicators
+# (documented at developers.google.com/safe-browsing - they are safe to
+# embed: they only serve test pages for validating security tooling).
+
+testsafebrowsing.appspot.com
+malware.testcategory.com
+phishing.testcategory.com
+unwanted.testcategory.com
+deceptive.testcategory.com
+
+# RFC 2606 / RFC 6761 special-use names: never legitimate destinations,
+# useful as tripwires in enterprise payloads.
+example.com
+example.net
+example.org
+example.invalid
+localhost

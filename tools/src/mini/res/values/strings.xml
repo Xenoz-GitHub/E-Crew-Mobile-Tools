@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mini Caf&#233;</string>
+    <string name="implicit_label">Implicit Activity</string>
+    <string name="exported_service_label">Exported Service</string>
+    <string-array name="endpoints">
+        <item>https://api.example.com/v1</item>
+        <item>https://cdn.example.com/static</item>
+    </string-array>
+</resources>

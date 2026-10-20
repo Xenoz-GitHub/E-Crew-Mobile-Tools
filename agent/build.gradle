@@ -1,0 +1,65 @@
+// E-Crew Remote Agent - consent-gated remote support agent, embedded in E-Crew as
+// app/src/main/assets/ecrew-agent.apk.
+//
+// Dependency budget is intentionally tiny (spec: AndroidX core + Kotlin stdlib +
+// activity for the ActivityResult API + security-crypto for at-rest secrets).
+// Legacy `apply plugin:` style on purpose (recorded decision D6): zero plugin-marker
+// resolution, deterministic offline-friendly builds.
+
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+android {
+    namespace 'com.ecrew.agent'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.ecrew.agent"
+        minSdk 26
+        targetSdk 28
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            // Sideloaded toolkit with no distribution keystore in scope: the release agent APK
+            // is sent to target devices and must be installable (the package manager rejects
+            // unsigned APKs), so it is signed with the standard Android debug keystore.
+            signingConfig signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+
+    lint {
+        // Sideloaded toolkit: targetSdk 28 is pinned by the feature spec (legacy storage and
+        // Bluetooth permission model on API 26+). The Play-store-only policy check is not
+        // applicable and must not fail the release build.
+        disable 'ExpiredTargetSdkVersion'
+        // core-ktx 1.12.0 / activity-ktx 1.8.0 are the newest releases compatible with the
+        // compileSdk 34 + AGP 8.1.1 toolchain pinned for this feature; newer AndroidX lines
+        // require compileSdk 35/36, so the "newer version available" hint is not actionable.
+        disable 'GradleDependency'
+    }
+}
+
+dependencies {
+    implementation project(':shared-protocol')
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.activity:activity-ktx:1.8.0'
+    implementation 'androidx.security:security-crypto:1.1.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4'
+
+    testImplementation 'junit:junit:4.13.2'
+}

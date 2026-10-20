@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- LAN transport socket creation: Android denies AF_INET sockets without INTERNET at
+         the kernel level (EACCES) on every API level including 26-28, despite the feature
+         spec assuming otherwise (recorded deviation D2). The agent never talks to the
+         internet: sessions are LAN-local or Bluetooth, payload is AES-GCM ciphertext only,
+         and there are no external endpoints anywhere in the code. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Bluetooth RFCOMM fallback. Legacy permissions cover API 26-30 with targetSdk 28;
+         the API 31+ pair is declared for modern devices (guarded at runtime). -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+
+    <!-- Mandatory: persistent foreground notification during any listening/session state. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- Screen-off gesture safeguard: ACQUIRE_CAUSES_WAKEUP wakelock held only around a
+         gesture (recorded deviation D4). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_agent_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.EcrewAgent"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".ConsentActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".AgentStatusActivity"
+            android:exported="false"
+            android:launchMode="singleTop" />
+
+        <service
+            android:name=".RemoteAgentService"
+            android:exported="false" />
+
+        <!-- Accessibility service. It cannot be enabled programmatically by design: the
+             user must flip the system toggle, and onServiceConnected re-checks the recorded
+             consent (disableSelf when absent). Nothing runs before explicit consent. -->
+        <service
+            android:name=".EcrewAccessibilityService"
+            android:exported="true"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+    </application>
+
+</manifest>

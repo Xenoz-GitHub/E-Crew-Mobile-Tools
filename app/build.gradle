@@ -1,0 +1,176 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.ecrew.toolkit'
+    compileSdk 34
+
+    // Matches :llm (NDK r26): used to strip the prebuilt Termux libraries while
+    // libecrew-llm.so is already stripped at link time (packagingOptions below).
+    ndkVersion '26.3.11579264'
+
+    defaultConfig {
+        applicationId "com.ecrew.toolkit"
+        minSdk 26
+        targetSdk 28
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary true
+        }
+        ndk {
+            // Xairex (Component 12) ships the vendored llama.cpp engine for arm64-v8a
+            // (devices) and x86_64 (emulator); keep the whole APK consistent with it.
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Sideloaded toolkit: no distribution keystore in scope; debug signing keeps the
+            // release APK installable for the API 26 acceptance pass (the package manager
+            // rejects unsigned APKs).
+            signingConfig signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+    lint {
+        // Sideloaded toolkit: targetSdk 28 is pinned by the feature spec (legacy storage and
+        // Bluetooth permission model on API 26+). The Play-store-only policy check is not
+        // applicable and must not fail release builds.
+        disable 'ExpiredTargetSdkVersion'
+    }
+    buildFeatures {
+        compose true
+        // Shizuku user-service binder for the Security Audit (design note 9c).
+        aidl true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.1'
+    }
+    packagingOptions {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+        jniLibs {
+            // The llama.cpp shared object is already fully stripped at link time (see
+            // llm/src/main/cpp/CMakeLists.txt); leave it untouched so no strip tool is
+            // needed for the prebuilt library.
+            keepDebugSymbols += '**/libecrew-llm.so'
+        }
+    }
+
+    androidResources {
+        // The bundled GGUF model must ship uncompressed so the first-run extraction is a
+        // raw stream copy (see the Component 12 design note).
+        noCompress.add('gguf')
+    }
+
+    sourceSets {
+        main {
+            // Bundled remote-support agent APK (produced by :agent:assembleRelease and copied
+            // by copyRemoteAgentApk); the Send Agent screen extracts it at runtime.
+            assets.srcDirs += layout.buildDirectory.dir('generated/agentAssets').get().asFile
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------
+// Remote Support: bundle the release agent APK into the app assets as ecrew-agent.apk.
+// ---------------------------------------------------------------------------------------
+def agentReleaseOutputDir = rootProject.layout.projectDirectory.dir('agent/build/outputs/apk/release').asFile
+
+tasks.register('copyRemoteAgentApk') {
+    group = 'remote support'
+    description = 'Copies the built release agent APK into app assets as ecrew-agent.apk.'
+    dependsOn ':agent:assembleRelease'
+    def sourceDir = agentReleaseOutputDir
+    def targetDirProvider = layout.buildDirectory.dir('generated/agentAssets')
+    inputs.dir(sourceDir).withPropertyName('agentReleaseApk')
+    outputs.dir(targetDirProvider)
+    doLast {
+        def apks = fileTree(sourceDir).matching { include '**/*.apk' }.files.sort { it.name }
+        if (apks.isEmpty()) {
+            throw new GradleException(
+                "No release APK under ${sourceDir}; :agent:assembleRelease produced nothing.")
+        }
+        def preferred = apks.find { it.name == 'agent-release.apk' } ?: apks.find { !it.name.contains('unsigned') } ?: apks.first()
+        def targetDir = targetDirProvider.get().asFile
+        targetDir.mkdirs()
+        def target = new File(targetDir, 'ecrew-agent.apk')
+        target.bytes = preferred.bytes
+        logger.lifecycle("Bundled agent APK: ${preferred.name} (${preferred.length()} bytes)")
+    }
+}
+
+// Both the asset-merge tasks and every lint analysis task read the generated assets
+// directory; each of them must therefore run after copyRemoteAgentApk (Gradle validation
+// requires the explicit edges).
+tasks.matching { task ->
+    task.name == 'mergeDebugAssets' || task.name == 'mergeReleaseAssets' ||
+        task.name.startsWith('lint')
+}.configureEach {
+    dependsOn 'copyRemoteAgentApk'
+}
+
+dependencies {
+    implementation project(':shared-protocol')
+    implementation project(':llm')
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+    implementation 'androidx.activity:activity-compose:1.8.0'
+    implementation platform('androidx.compose:compose-bom:2023.08.00')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    // Extended icon set (QrCodeScanner, Terminal, etc.)
+    implementation 'androidx.compose.material:material-icons-extended'
+
+    // Navigation
+    implementation "androidx.navigation:navigation-compose:2.7.4"
+
+    // ZXing for QR Scanning
+    implementation 'com.google.zxing:core:3.5.1'
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+
+    // Termux terminal (real PTY + terminal emulator UI), Phase 3.
+    // terminal-emulator AAR bundles jni/*/libtermux.so (forkpty subprocess).
+    implementation 'com.github.termux.termux-app:terminal-view:0.118.2'
+
+    // NOTE: Room intentionally NOT used. Case/artifact storage uses plain
+    // android.database.sqlite (SQLiteOpenHelper) to avoid kapt annotation
+    // processing and keep the build fully deterministic/offline-friendly.
+
+    // Shizuku tier (Apache-2.0): privileged read-only shell for the Security Audit
+    // (design note 2026-10-19-2336-security-audit-design.md section 9c). No other
+    // module may call Shizuku through this dependency without its own design note.
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
+
+    // APK Analysis (prompt Component 11): jadx is pinned to 1.4.7. Upgrading requires a
+    // design decision and re-running JadxDecompileTest. jadx is pure Java and runs in-process.
+    implementation 'io.github.skylot:jadx-core:1.4.7'
+    implementation 'io.github.skylot:jadx-dex-input:1.4.7'
+    implementation 'org.slf4j:slf4j-nop:2.0.6'
+
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation platform('androidx.compose:compose-bom:2023.08.00')
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+}

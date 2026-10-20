@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Platform-level cleartext ban. The session socket carries AES-GCM ciphertext only and
+     never speaks cleartext HTTP; this config makes the ban explicit and enforced. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

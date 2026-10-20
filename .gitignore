@@ -1,0 +1,39 @@
+# Gradle and Android build output
+.gradle/
+**/build/
+.cxx/
+**/.cxx/
+captures/
+.externalNativeBuild/
+**/.externalNativeBuild/
+
+# Local toolchain configuration
+local.properties
+.sdkmanrc
+
+# IDE metadata
+.idea/
+*.iml
+.vscode/
+
+# Signing material and secrets
+*.jks
+*.keystore
+keystore.properties
+
+# Packaged outputs
+*.apk
+*.aab
+*.ap_
+*.apks
+
+# Logs and temporary files
+*.log
+*.tmp
+*.orig
+*.rej
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+desktop.ini
