@@ -14,6 +14,12 @@ inference. Core workflows do not require a cloud service.
 > have explicit written authorization to assess. You are responsible for complying
 > with all applicable laws, platform policies, and organizational rules.
 
+## Download
+
+Prebuilt APKs are published on the [Releases page](https://github.com/Xenoz-GitHub/E-Crew/releases).
+Download the APK from the latest release, then enable installation from unknown
+sources on the Android device if required.
+
 ## Capabilities
 
 | Area | Description | Access |
