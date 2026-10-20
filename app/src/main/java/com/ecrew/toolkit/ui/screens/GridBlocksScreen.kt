@@ -2,6 +2,8 @@ package com.ecrew.toolkit.ui.screens
 
 import android.view.View
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -74,6 +76,7 @@ import com.ecrew.toolkit.gridblocks.GridBlocksSnapshot
 import com.ecrew.toolkit.gridblocks.GridBlocksStore
 import com.ecrew.toolkit.gridblocks.GridBlocksView
 import com.ecrew.toolkit.gridblocks.Mode
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -109,7 +112,7 @@ private val GameCatalog = listOf(
         id = "mobile-legacy",
         title = "MOBILE LEGACY",
         tagline = "Brawl arena",
-        description = "A fast arena brawler. The included pack installs once, then launches here.",
+        description = "A fast arena brawler. Install it once from the Hub, then launch it right here.",
         accent = GameWarn,
         pack = GamePacks.MobileLegacy
     ),
@@ -117,7 +120,7 @@ private val GameCatalog = listOf(
         id = "swords-ninja",
         title = "SWORDS NINJA",
         tagline = "2D ninja fighter",
-        description = "A high-energy fighter. The included pack installs once, then launches here.",
+        description = "A high-energy fighter. Install it once from the Hub, then launch it right here.",
         accent = GamePink,
         pack = GamePacks.SwordsNinja
     )
@@ -141,17 +144,14 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
     var installedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var installingId by remember { mutableStateOf<String?>(null) }
     var permissionGame by remember { mutableStateOf<GameEntry?>(null) }
+    var pendingImportId by rememberSaveable { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Packs are only listed when their APKs were included in this particular build.
-    val bundledCatalog = remember {
-        GameCatalog.filter { game ->
-            game.pack == null || GamePackInstaller.isBundled(context, game.pack)
-        }
-    }
+    fun isBundled(game: GameEntry): Boolean =
+        game.pack?.let { GamePackInstaller.isBundled(context, it) } == true
 
     fun refreshInstalled() {
-        installedIds = bundledCatalog.mapNotNull { game ->
+        installedIds = GameCatalog.mapNotNull { game ->
             game.pack?.takeIf { GamePackInstaller.isInstalled(context, it) }?.id
         }.toSet()
     }
@@ -164,7 +164,61 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(bundledCatalog) { refreshInstalled() }
+    LaunchedEffect(Unit) { refreshInstalled() }
+
+    val apkPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val game = pendingImportId?.let { id -> GameCatalog.firstOrNull { it.id == id } }
+        pendingImportId = null
+        val pack = game?.pack
+        if (game == null || pack == null || uri == null) return@rememberLauncherForActivityResult
+
+        installingId = game.id
+        scope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching {
+                    val staging = File(context.cacheDir, "imported-packs/${pack.id}.apk")
+                    staging.parentFile?.mkdirs()
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            staging.outputStream().use { output ->
+                                input.copyTo(output, 1024 * 1024)
+                            }
+                        } ?: throw IllegalStateException("The selected file could not be read.")
+
+                        @Suppress("DEPRECATION")
+                        val info = context.packageManager.getPackageArchiveInfo(staging.absolutePath, 0)
+                        if (info?.packageName != pack.packageName) {
+                            throw IllegalArgumentException(
+                                "That file is ${info?.packageName ?: "not a readable APK"}, not ${game.title}."
+                            )
+                        }
+
+                        staging.inputStream().use { input ->
+                            GamePackInstaller.installStream(context, pack, input)
+                        }
+                    } finally {
+                        staging.delete()
+                    }
+                }
+            }
+            installingId = null
+            if (outcome.isFailure) {
+                errorMessage = "Could not import ${game.title}: " +
+                    (outcome.exceptionOrNull()?.message ?: "unknown error")
+            }
+        }
+    }
+
+    fun beginImport(game: GameEntry) {
+        if (installingId != null) return
+        pendingImportId = game.id
+        runCatching {
+            apkPicker.launch(arrayOf("application/vnd.android.package-archive", "*/*"))
+        }.onFailure {
+            pendingImportId = null
+            errorMessage = "No file picker is available to choose the ${game.title} APK."
+        }
+    }
 
     fun startPack(game: GameEntry) {
         val pack = game.pack ?: return
@@ -173,10 +227,6 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
             if (!GamePackInstaller.launch(context, pack)) {
                 errorMessage = "${game.title} is installed but could not be opened."
             }
-            return
-        }
-        if (!GamePackInstaller.isBundled(context, pack)) {
-            errorMessage = "${game.title} is not bundled in this build."
             return
         }
         if (!GamePackInstaller.supportsNativeAbi(pack)) {
@@ -188,10 +238,15 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
             return
         }
 
+        if (!isBundled(game)) {
+            beginImport(game)
+            return
+        }
+
         installingId = game.id
         scope.launch {
             val outcome = withContext(Dispatchers.IO) {
-                runCatching { GamePackInstaller.install(context, pack) }
+                runCatching { GamePackInstaller.installBundled(context, pack) }
             }
             installingId = null
             if (outcome.isFailure) {
@@ -235,7 +290,7 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
             letterSpacing = 1.4.sp
         )
         Text(
-            "Choose a world. GridBlocks is built in; included game packs install once through Android and launch right here.",
+            "Choose a world. GridBlocks is built in; pack games install once through Android and launch right here.",
             color = GameMuted,
             fontSize = 11.sp
         )
@@ -256,11 +311,12 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text("ONE HUB, MORE WORLDS", color = GameInfo, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    val readyCount = GameCatalog.count { it.pack == null || isBundled(it) }
                     Text(
-                        if (bundledCatalog.size > 1) {
-                            "${bundledCatalog.size} games are in this build. Game packs install once; no download is needed."
+                        if (readyCount > 1) {
+                            "$readyCount games are ready in this build. First play installs once through Android."
                         } else {
-                            "GridBlocks is ready. Add game packs to this build to fill the Hub."
+                            "GridBlocks is ready. If a game is not bundled, choose your own APK file once and it installs here."
                         },
                         color = GameMuted,
                         fontSize = 10.sp
@@ -269,18 +325,19 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
             }
         }
         Text("CHOOSE A GAME", color = GameMuted, fontSize = 9.sp, letterSpacing = 1.2.sp)
-        bundledCatalog.forEach { game ->
+        GameCatalog.forEach { game ->
             val installed = game.pack?.let { installedIds.contains(it.id) } == true
             GameTile(
                 game = game,
                 installed = installed,
                 installing = installingId == game.id,
+                bundled = isBundled(game),
                 supported = game.pack?.let { GamePackInstaller.supportsNativeAbi(it) } != false,
                 onClick = { openGame(game) }
             )
         }
         Text(
-            "Game packs are installed by Android the first time you play them. They stay available here and in your app list.",
+            "Bundled games install with one tap. If a game is not bundled, pick its APK file once: Android installs it, it stays in your app list, and it always launches from here.",
             color = GameMuted,
             fontSize = 9.sp,
             modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp)
@@ -312,11 +369,11 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
     }
 
     installingId?.let { id ->
-        val title = bundledCatalog.firstOrNull { it.id == id }?.title ?: "Game pack"
+        val title = GameCatalog.firstOrNull { it.id == id }?.title ?: "Game pack"
         AlertDialog(
             onDismissRequest = {},
             title = { Text("Preparing $title") },
-            text = { Text("Copying the bundled APK into Android's installer. This can take a moment.") },
+            text = { Text("Copying the pack into Android's installer. This can take a moment.") },
             confirmButton = {}
         )
     }
@@ -338,6 +395,7 @@ private fun GameTile(
     game: GameEntry,
     installed: Boolean,
     installing: Boolean,
+    bundled: Boolean,
     supported: Boolean,
     onClick: () -> Unit
 ) {
@@ -347,13 +405,21 @@ private fun GameTile(
         installing -> "PREPARING INSTALL"
         builtIn -> "READY • BUILT IN"
         installed -> "INSTALLED • TAP TO PLAY"
-        else -> "INSTALL ONCE • INCLUDED"
+        bundled -> "INSTALL ONCE • INCLUDED"
+        else -> "NOT BUNDLED • IMPORT YOUR APK"
     }
     val action = when {
         !supported -> "N/A"
         installing -> "Wait"
         builtIn || installed -> "Play"
-        else -> "Install"
+        bundled -> "Install"
+        else -> "Import"
+    }
+    val statusColor = when {
+        !supported || installing -> GameMuted
+        builtIn || installed -> GameGreen
+        bundled -> GameMuted
+        else -> game.accent
     }
 
     Card(
@@ -385,7 +451,7 @@ private fun GameTile(
                 Text(game.description, color = GameMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
                 Text(
                     status,
-                    color = if (installed || builtIn) GameGreen else GameMuted,
+                    color = statusColor,
                     fontSize = 8.sp,
                     letterSpacing = 1.sp,
                     modifier = Modifier.padding(top = 4.dp)

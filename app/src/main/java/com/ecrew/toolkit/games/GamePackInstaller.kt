@@ -77,11 +77,22 @@ object GamePackInstaller {
     }
 
     /**
-     * Streams the pack APK into a PackageInstaller session and commits it. The system
-     * installer UI is opened by [GamePackInstallReceiver] when Android requests user action.
+     * Streams the pack APK from the app's assets into a PackageInstaller session and
+     * commits it. The system installer UI is opened by [GamePackInstallReceiver].
      */
     @WorkerThread
-    fun install(context: Context, pack: GamePack) {
+    fun installBundled(context: Context, pack: GamePack) {
+        context.assets.open(pack.assetName).use { input ->
+            installStream(context, pack, input)
+        }
+    }
+
+    /**
+     * Streams a user-selected pack APK into a PackageInstaller session and commits it.
+     * The caller owns [source] and closes it after this method returns.
+     */
+    @WorkerThread
+    fun installStream(context: Context, pack: GamePack, source: java.io.InputStream) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(
             PackageInstaller.SessionParams.MODE_FULL_INSTALL
@@ -94,11 +105,9 @@ object GamePackInstaller {
         var session: PackageInstaller.Session? = null
         try {
             session = installer.openSession(sessionId)
-            context.assets.open(pack.assetName).use { input ->
-                session.openWrite("base.apk", 0, -1).use { output ->
-                    input.copyTo(output, COPY_BUFFER)
-                    session.fsync(output)
-                }
+            session.openWrite("base.apk", 0, -1).use { output ->
+                source.copyTo(output, COPY_BUFFER)
+                session.fsync(output)
             }
 
             val callback = Intent(context, GamePackInstallReceiver::class.java).apply {

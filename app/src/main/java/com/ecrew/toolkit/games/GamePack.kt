@@ -1,8 +1,9 @@
 package com.ecrew.toolkit.games
 
 /**
- * A third-party game shipped inside the main APK's assets and installed through
- * [android.content.pm.PackageInstaller] on first play.
+ * A third-party game that the Games Hub installs through
+ * [android.content.pm.PackageInstaller] on first play. The APK can either be bundled in
+ * the main APK's assets or chosen once by the user (see the Hub's import flow).
  *
  * The APK itself is deliberately left untouched: both games contain native runtimes
  * (Unity and Adobe AIR) that cannot be safely merged into the toolkit's process.

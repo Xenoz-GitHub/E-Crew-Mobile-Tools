@@ -18,8 +18,12 @@ inference. Core workflows do not require a cloud service.
 
 [Download the latest APK](https://github.com/Xenoz-GitHub/E-Crew-Mobile-Tools/releases/latest/download/app-release.apk).
 
-The published evaluation build is signed with the Android debug keystore. Verify
-the SHA-256 checksum in the release notes before installing, and enable
+The published evaluation build is signed with the Android debug keystore. It is the
+core build and does not redistribute third-party game packs. Its Games Hub still lists
+Mobile Legacy and Swords Ninja: if a game is not bundled, tap **Import** and pick your
+own APK file once. See [Optional local game packs](#optional-local-game-packs) for
+details or to bundle your own packs before building.
+Verify the SHA-256 checksum in the release notes before installing, and enable
 installation from unknown sources on the Android device if required.
 
 ### Play Protect
@@ -52,7 +56,7 @@ sensitive forensic acquisition permissions.
 | Peer Messaging | Local peer-to-peer chat over LAN or Bluetooth with PBKDF2-HMAC-SHA256 key derivation and AES-GCM framing. | No external message relay. |
 | Field Utilities | QR and payload analysis, a real PTY terminal, Wi-Fi scanning and wardriving, LAN discovery, WPS inspection and Android 8.x WPS connection, and local PCAP capture. | Runtime permissions and, for packet capture, a local VPN consent prompt. |
 | Xairex | On-device assistant powered by a bundled SmolLM2 360M instruct model through llama.cpp. | Fully local inference; no prompt or completion leaves the device. |
-| Games Hub / GRIDBLOCKS | Expandable game catalog. GRIDBLOCKS is an 8x8 block puzzle with textured glass blocks, lifted drag previews, animated fireworks, rainbow clear effects, three modes, local scores, and synthesized audio. Optional local game packs are installed on first play through Android's confirmed package installer. | GRIDBLOCKS needs no extra permissions. Pack installation uses `REQUEST_INSTALL_PACKAGES` and requires the user to approve E-Crew as an install source. |
+| Games Hub / GRIDBLOCKS | Expandable game catalog. GRIDBLOCKS is an 8x8 block puzzle with textured glass blocks, lifted drag previews, animated fireworks, rainbow clear effects, three modes, local scores, and synthesized audio. Game pack tiles install bundled packs on first play, or import a user-selected APK, through Android's confirmed package installer. | GRIDBLOCKS needs no extra permissions. Pack installation uses `REQUEST_INSTALL_PACKAGES` and requires the user to approve E-Crew as an install source. |
 
 ## Requirements
 
@@ -118,6 +122,12 @@ user must approve E-Crew as an install source and confirm the system prompt; And
 does not allow a sideloaded app to install another APK silently. After installation,
 the Hub launches the game and keeps a Play entry. Both supplied packs are ARMv7 games,
 so the device must expose 32-bit ARM support. They also add roughly 250 MB to the APK.
+
+When a pack is not bundled, the Hub still lists the game and labels it **NOT BUNDLED •
+IMPORT YOUR APK**. Tapping it opens the system file picker; the chosen APK is validated
+against the expected package name and then installed through the same confirmed
+`PackageInstaller` flow. This keeps the public build free of third-party game binaries
+while the games remain playable from the Hub for users who own them.
 
 The APK files are intentionally ignored by Git. The public build contains only
 GRIDBLOCKS. Only add third-party packs when you have the right to install and
