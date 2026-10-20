@@ -46,6 +46,10 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
+    <!-- Games Hub packs are installed from app assets on first play. Android 8+ still
+         requires the user to enable this app as an install source and confirm the prompt. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Remote Support controller: Bluetooth RFCOMM to the agent. Legacy permissions cover
          API 26-30 with targetSdk 28; the modern pair is declared for 31+ devices. -->
     <uses-permission
@@ -115,6 +119,12 @@
              toggle (foreground) or while the Chat screen is open; no external traffic. -->
         <service
             android:name="com.ecrew.toolkit.messaging.MessagingService"
+            android:exported="false" />
+
+        <!-- Receives PackageInstaller status for bundled Games Hub packs. The receiver is
+             process-local: the system delivers it through the session's PendingIntent. -->
+        <receiver
+            android:name="com.ecrew.toolkit.games.GamePackInstallReceiver"
             android:exported="false" />
 
         <!-- Component 14: foreground loopback interception proxy. No VPN or external

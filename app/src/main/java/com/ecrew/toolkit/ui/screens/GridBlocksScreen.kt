@@ -24,7 +24,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.AlertDialog
@@ -43,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,7 +52,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,6 +63,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import com.ecrew.toolkit.games.GamePack
+import com.ecrew.toolkit.games.GamePackInstaller
+import com.ecrew.toolkit.games.GamePacks
 import com.ecrew.toolkit.gridblocks.GameEngine
 import com.ecrew.toolkit.gridblocks.GridBlocksAudio
 import com.ecrew.toolkit.gridblocks.GridBlocksHaptics
@@ -69,7 +74,10 @@ import com.ecrew.toolkit.gridblocks.GridBlocksSnapshot
 import com.ecrew.toolkit.gridblocks.GridBlocksStore
 import com.ecrew.toolkit.gridblocks.GridBlocksView
 import com.ecrew.toolkit.gridblocks.Mode
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val GameBg = Color(0xFF060A12)
 private val GameCard = Color(0xFF0D1925)
@@ -86,8 +94,7 @@ private data class GameEntry(
     val tagline: String,
     val description: String,
     val accent: Color,
-    val available: Boolean,
-    val status: String
+    val pack: GamePack? = null
 )
 
 private val GameCatalog = listOf(
@@ -96,27 +103,23 @@ private val GameCatalog = listOf(
         title = "GRIDBLOCKS",
         tagline = "8 × 8 block puzzle",
         description = "Stack glossy blocks, clear lines, chain combos, and keep the grid alive.",
-        accent = GameInfo,
-        available = true,
-        status = "READY"
+        accent = GameInfo
     ),
     GameEntry(
-        id = "slot-one",
-        title = "NEXT GAME",
-        tagline = "Reserved slot",
-        description = "A future offline game will live here. The hub catalog is ready for it.",
+        id = "mobile-legacy",
+        title = "MOBILE LEGACY",
+        tagline = "Brawl arena",
+        description = "A fast arena brawler. The included pack installs once, then launches here.",
+        accent = GameWarn,
+        pack = GamePacks.MobileLegacy
+    ),
+    GameEntry(
+        id = "swords-ninja",
+        title = "SWORDS NINJA",
+        tagline = "2D ninja fighter",
+        description = "A high-energy fighter. The included pack installs once, then launches here.",
         accent = GamePink,
-        available = false,
-        status = "COMING SOON"
-    ),
-    GameEntry(
-        id = "slot-two",
-        title = "NEXT GAME",
-        tagline = "Reserved slot",
-        description = "No downloads, no accounts. New games can be added without rebuilding the hub.",
-        accent = GameGreen,
-        available = false,
-        status = "COMING SOON"
+        pack = GamePacks.SwordsNinja
     )
 )
 
@@ -132,6 +135,76 @@ fun GamesHubScreen(onBack: () -> Unit) {
 
 @Composable
 private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
+    var installedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var installingId by remember { mutableStateOf<String?>(null) }
+    var permissionGame by remember { mutableStateOf<GameEntry?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Packs are only listed when their APKs were included in this particular build.
+    val bundledCatalog = remember {
+        GameCatalog.filter { game ->
+            game.pack == null || GamePackInstaller.isBundled(context, game.pack)
+        }
+    }
+
+    fun refreshInstalled() {
+        installedIds = bundledCatalog.mapNotNull { game ->
+            game.pack?.takeIf { GamePackInstaller.isInstalled(context, it) }?.id
+        }.toSet()
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshInstalled()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(bundledCatalog) { refreshInstalled() }
+
+    fun startPack(game: GameEntry) {
+        val pack = game.pack ?: return
+        if (installingId != null) return
+        if (GamePackInstaller.isInstalled(context, pack)) {
+            if (!GamePackInstaller.launch(context, pack)) {
+                errorMessage = "${game.title} is installed but could not be opened."
+            }
+            return
+        }
+        if (!GamePackInstaller.isBundled(context, pack)) {
+            errorMessage = "${game.title} is not bundled in this build."
+            return
+        }
+        if (!GamePackInstaller.supportsNativeAbi(pack)) {
+            errorMessage = "${game.title} requires 32-bit ARM support, which this device does not expose."
+            return
+        }
+        if (!GamePackInstaller.canInstall(context)) {
+            permissionGame = game
+            return
+        }
+
+        installingId = game.id
+        scope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching { GamePackInstaller.install(context, pack) }
+            }
+            installingId = null
+            if (outcome.isFailure) {
+                errorMessage = "Could not prepare ${game.title}: " +
+                    (outcome.exceptionOrNull()?.message ?: "unknown error")
+            }
+        }
+    }
+
+    fun openGame(game: GameEntry) {
+        if (game.pack == null) onOpen(game.id) else startPack(game)
+    }
+
     BackHandler(onBack = onBack)
     Column(
         Modifier
@@ -152,7 +225,7 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
                 Text("Back", fontSize = 10.sp)
             }
             Spacer(Modifier.weight(1f))
-            Text("OFFLINE ARCADE", color = GameMuted, fontSize = 9.sp, letterSpacing = 1.2.sp)
+            Text("GAME LAUNCHER", color = GameMuted, fontSize = 9.sp, letterSpacing = 1.2.sp)
         }
         Text(
             "GAMES HUB",
@@ -162,7 +235,7 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
             letterSpacing = 1.4.sp
         )
         Text(
-            "Choose a game. Everything runs on this device; no account, network, or download is required.",
+            "Choose a world. GridBlocks is built in; included game packs install once through Android and launch right here.",
             color = GameMuted,
             fontSize = 11.sp
         )
@@ -184,7 +257,11 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Text("ONE HUB, MORE WORLDS", color = GameInfo, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text(
-                        "GridBlocks is ready now. The lower slots are reserved for the next games.",
+                        if (bundledCatalog.size > 1) {
+                            "${bundledCatalog.size} games are in this build. Game packs install once; no download is needed."
+                        } else {
+                            "GridBlocks is ready. Add game packs to this build to fill the Hub."
+                        },
                         color = GameMuted,
                         fontSize = 10.sp
                     )
@@ -192,31 +269,99 @@ private fun GamesHubLobby(onBack: () -> Unit, onOpen: (String) -> Unit) {
             }
         }
         Text("CHOOSE A GAME", color = GameMuted, fontSize = 9.sp, letterSpacing = 1.2.sp)
-        GameCatalog.forEach { game ->
-            GameTile(game = game, onClick = { onOpen(game.id) })
+        bundledCatalog.forEach { game ->
+            val installed = game.pack?.let { installedIds.contains(it.id) } == true
+            GameTile(
+                game = game,
+                installed = installed,
+                installing = installingId == game.id,
+                supported = game.pack?.let { GamePackInstaller.supportsNativeAbi(it) } != false,
+                onClick = { openGame(game) }
+            )
         }
         Text(
-            "The catalog is intentionally data-driven so future games can be added without changing this hub.",
+            "Game packs are installed by Android the first time you play them. They stay available here and in your app list.",
             color = GameMuted,
             fontSize = 9.sp,
             modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp)
         )
     }
+
+    permissionGame?.let { game ->
+        AlertDialog(
+            onDismissRequest = { permissionGame = null },
+            title = { Text("Allow game pack installs") },
+            text = {
+                Text(
+                    "Android requires your permission before ${game.title} can be installed. " +
+                        "Enable installs for E-Crew Toolkit, then return to the Hub and tap Install."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        permissionGame = null
+                        GamePackInstaller.openInstallPermissionSettings(context)
+                    }
+                ) { Text("Open settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { permissionGame = null }) { Text("Not now") }
+            }
+        )
+    }
+
+    installingId?.let { id ->
+        val title = bundledCatalog.firstOrNull { it.id == id }?.title ?: "Game pack"
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Preparing $title") },
+            text = { Text("Copying the bundled APK into Android's installer. This can take a moment.") },
+            confirmButton = {}
+        )
+    }
+
+    errorMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { errorMessage = null },
+            title = { Text("Game pack") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { errorMessage = null }) { Text("Close") }
+            }
+        )
+    }
 }
 
 @Composable
-private fun GameTile(game: GameEntry, onClick: () -> Unit) {
+private fun GameTile(
+    game: GameEntry,
+    installed: Boolean,
+    installing: Boolean,
+    supported: Boolean,
+    onClick: () -> Unit
+) {
+    val builtIn = game.pack == null
+    val status = when {
+        !supported -> "NEEDS 32-BIT ARM"
+        installing -> "PREPARING INSTALL"
+        builtIn -> "READY • BUILT IN"
+        installed -> "INSTALLED • TAP TO PLAY"
+        else -> "INSTALL ONCE • INCLUDED"
+    }
+    val action = when {
+        !supported -> "N/A"
+        installing -> "Wait"
+        builtIn || installed -> "Play"
+        else -> "Install"
+    }
+
     Card(
         Modifier
             .fillMaxWidth()
-            .clickable(enabled = game.available, onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = if (game.available) GameCard else Color(0xFF0A1119)
-        ),
-        border = BorderStroke(
-            1.dp,
-            if (game.available) game.accent.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.06f)
-        ),
+            .clickable(enabled = !installing && supported, onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = GameCard),
+        border = BorderStroke(1.dp, game.accent.copy(alpha = 0.45f)),
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -231,50 +376,72 @@ private fun GameTile(game: GameEntry, onClick: () -> Unit) {
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                if (game.available) {
-                    MiniBlockPreview()
-                } else {
-                    Icon(
-                        Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = game.accent.copy(alpha = 0.55f),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                GameEmblem(game)
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(game.title, color = if (game.available) Color.White else GameMuted, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(game.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text(game.tagline, color = game.accent, fontSize = 10.sp)
                 Text(game.description, color = GameMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
                 Text(
-                    game.status,
-                    color = if (game.available) GameGreen else GameMuted,
+                    status,
+                    color = if (installed || builtIn) GameGreen else GameMuted,
                     fontSize = 8.sp,
                     letterSpacing = 1.sp,
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            if (game.available) {
-                Button(
-                    onClick = onClick,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = game.accent, contentColor = Color(0xFF041018))
-                ) {
+            Button(
+                onClick = onClick,
+                enabled = !installing && supported,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 11.dp, vertical = 6.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (builtIn || installed) GameGreen else game.accent,
+                    contentColor = Color(0xFF041018)
+                )
+            ) {
+                if (!installing) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(2.dp))
-                    Text("Play", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
-            } else {
-                OutlinedButton(
-                    onClick = {},
-                    enabled = false,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text("Soon", fontSize = 10.sp)
-                }
+                Text(action, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
+    }
+}
+
+@Composable
+private fun GameEmblem(game: GameEntry) {
+    if (game.pack == null) {
+        MiniBlockPreview()
+        return
+    }
+    val initials = game.title
+        .split(' ')
+        .mapNotNull { it.firstOrNull()?.toString() }
+        .take(2)
+        .joinToString("")
+    Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(game.accent.copy(alpha = 0.42f), Color.Transparent)
+                ),
+                radius = size.minDimension * 0.56f
+            )
+            drawCircle(
+                color = game.accent.copy(alpha = 0.7f),
+                radius = size.minDimension * 0.43f,
+                style = Stroke(width = 1.4.dp.toPx())
+            )
+        }
+        Text(
+            initials,
+            color = game.accent,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
     }
 }
 

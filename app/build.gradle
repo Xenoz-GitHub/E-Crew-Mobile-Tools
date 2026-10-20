@@ -15,8 +15,8 @@ android {
         applicationId "com.ecrew.toolkit"
         minSdk 26
         targetSdk 28
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "1.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -83,6 +83,9 @@ android {
             // Bundled remote-support agent APK (produced by :agent:assembleRelease and copied
             // by copyRemoteAgentApk); the Send Agent screen extracts it at runtime.
             assets.srcDirs += layout.buildDirectory.dir('generated/agentAssets').get().asFile
+            // Optional locally supplied game packs. The APK files are intentionally ignored by
+            // Git; a public build without this directory keeps only the built-in games.
+            assets.srcDirs += rootProject.file('gamepacks')
         }
     }
 }
