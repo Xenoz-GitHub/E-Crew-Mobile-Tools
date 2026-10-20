@@ -16,9 +16,11 @@ inference. Core workflows do not require a cloud service.
 
 ## Download
 
-Prebuilt APKs are published on the [Releases page](https://github.com/Xenoz-GitHub/E-Crew/releases).
-Download the APK from the latest release, then enable installation from unknown
-sources on the Android device if required.
+[Download the latest APK](https://github.com/Xenoz-GitHub/E-Crew-Mobile-Tools/releases/latest/download/app-release.apk).
+
+The published evaluation build is signed with the Android debug keystore. Verify
+the SHA-256 checksum in the release notes before installing, and enable
+installation from unknown sources on the Android device if required.
 
 ## Capabilities
 
@@ -51,8 +53,8 @@ Google Play distribution.
 ## Build
 
 ```bash
-git clone https://github.com/Xenoz-GitHub/E-Crew.git
-cd E-Crew
+git clone https://github.com/Xenoz-GitHub/E-Crew-Mobile-Tools.git
+cd E-Crew-Mobile-Tools
 git lfs install
 git lfs pull
 ./gradlew :app:assembleRelease
