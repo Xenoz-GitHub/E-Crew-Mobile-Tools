@@ -1,4 +1,4 @@
-package com.ecrew.toolkit.gridshock
+package com.ecrew.toolkit.gridblocks
 
 import android.content.ContentValues
 import android.content.Context
@@ -7,12 +7,23 @@ import android.database.sqlite.SQLiteOpenHelper
 import java.nio.ByteBuffer
 
 /**
- * GRIDSHOCK-only store. The schema mirrors the frozen design; this build uses
+ * GRIDBLOCKS-only store. The schema mirrors the frozen design; this build uses
  * SQLiteOpenHelper because Room/kapt is not present in the project toolchain. No other
  * database is ever opened or referenced here.
  */
-class GridshockStore(private val context: Context) :
+class GridBlocksStore(private val context: Context) :
     SQLiteOpenHelper(context, DB_NAME, null, SCHEMA_VERSION) {
+
+    init {
+        // GRIDSHOCK shipped under the old database name. Carry scores and saves over
+        // without making the player lose progress after the rename.
+        val legacy = context.getDatabasePath(LEGACY_DB_NAME)
+        val current = context.getDatabasePath(DB_NAME)
+        if (!current.exists() && legacy.exists()) {
+            current.parentFile?.mkdirs()
+            legacy.renameTo(current)
+        }
+    }
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -56,15 +67,15 @@ class GridshockStore(private val context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // No released GRIDSHOCK schema has changed yet.
+        // No released GRIDBLOCKS schema has changed yet.
     }
 
-    fun loadSettings(): GridshockSettings {
+    fun loadSettings(): GridBlocksSettings {
         val values = LinkedHashMap<String, String>()
         readableDatabase.rawQuery("SELECT key, value FROM settings", null).use { cursor ->
             while (cursor.moveToNext()) values[cursor.getString(0)] = cursor.getString(1)
         }
-        return GridshockSettings(
+        return GridBlocksSettings(
             sound = values["sound"]?.toBooleanStrictOrNull() ?: true,
             haptics = values["haptics"]?.toBooleanStrictOrNull() ?: true,
             reduceMotion = values["reduce_motion"]?.toBooleanStrictOrNull() ?: false,
@@ -75,7 +86,7 @@ class GridshockStore(private val context: Context) :
         )
     }
 
-    fun saveSettings(settings: GridshockSettings) {
+    fun saveSettings(settings: GridBlocksSettings) {
         putSetting("sound", settings.sound.toString())
         putSetting("haptics", settings.haptics.toString())
         putSetting("reduce_motion", settings.reduceMotion.toString())
@@ -139,7 +150,7 @@ class GridshockStore(private val context: Context) :
         )
     }
 
-    fun loadRun(): GridshockSnapshot? {
+    fun loadRun(): GridBlocksSnapshot? {
         readableDatabase.rawQuery(
             "SELECT mode, seed, board_state, tray_state, score, combo, best_combo, moves, " +
                 "lines, perfects, overload, overload_armed, non_clearing, allow_rotation, " +
@@ -151,7 +162,7 @@ class GridshockStore(private val context: Context) :
             val board = fromBytes(cursor.getBlob(2))
             val corruption = fromBytes(cursor.getBlob(14))
             if (board.size != Board.CELL_COUNT || corruption.size != Board.CELL_COUNT) return null
-            return GridshockSnapshot(
+            return GridBlocksSnapshot(
                 mode = mode,
                 seed = cursor.getLong(1),
                 board = board,
@@ -188,12 +199,13 @@ class GridshockStore(private val context: Context) :
     }
 
     companion object {
-        const val DB_NAME = "gridshock.db"
+        const val DB_NAME = "gridblocks.db"
+        const val LEGACY_DB_NAME = "gridshock.db"
         const val SCHEMA_VERSION = 1
     }
 }
 
-data class GridshockSettings(
+data class GridBlocksSettings(
     val sound: Boolean,
     val haptics: Boolean,
     val reduceMotion: Boolean,

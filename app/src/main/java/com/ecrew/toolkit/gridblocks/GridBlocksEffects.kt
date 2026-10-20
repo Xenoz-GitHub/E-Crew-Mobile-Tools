@@ -1,4 +1,4 @@
-package com.ecrew.toolkit.gridshock
+package com.ecrew.toolkit.gridblocks
 
 /**
  * Fixed VFX catalog from the frozen design note. The view maps each event to one of these

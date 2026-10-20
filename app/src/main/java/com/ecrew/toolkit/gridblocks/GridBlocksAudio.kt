@@ -1,4 +1,4 @@
-package com.ecrew.toolkit.gridshock
+package com.ecrew.toolkit.gridblocks
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -9,7 +9,7 @@ import android.view.View
 import com.ecrew.toolkit.R
 
 /** SoundPool wrapper for the eight build-time synthesized WAVs. */
-class GridshockAudio(private val context: Context) {
+class GridBlocksAudio(private val context: Context) {
     private val pool: SoundPool
     private val ids = HashMap<String, Int>()
     private var loaded = 0
@@ -71,7 +71,7 @@ class GridshockAudio(private val context: Context) {
  * requires no VIBRATE permission. Custom waveform amplitudes from the design are therefore
  * not available; the closest lawful API 26-safe feedback constants are used instead.
  */
-class GridshockHaptics {
+class GridBlocksHaptics {
     var enabled = true
     private var view: View? = null
 

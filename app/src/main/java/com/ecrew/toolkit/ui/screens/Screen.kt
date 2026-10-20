@@ -12,7 +12,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object RemoteSupport : Screen("remote_support", "Remote", Icons.Default.SupportAgent)
     object Chat : Screen("chat", "Chat", Icons.Default.Chat)
 
-    /** Not a bottom-nav item: opened from the QR scanner's Games hub entry. */
-    object Games : Screen("games", "Games", Icons.Default.Star)
+    /** Not a bottom-nav item: opened from the QR scanner's Games Hub entry. */
+    object Games : Screen("games", "Games Hub", Icons.Default.Star)
 }
 

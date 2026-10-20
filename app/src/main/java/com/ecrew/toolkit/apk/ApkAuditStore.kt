@@ -11,7 +11,7 @@ import java.io.FileOutputStream
 /**
  * APK-specific audit storage: a dedicated SQLite database plus one JSONL file per analysis
  * session under filesDir/audit/apk. This database is owned by the APK workbench and is not
- * shared with audit, chat, GRIDSHOCK or any other module.
+ * shared with audit, chat, GRIDBLOCKS or any other module.
  */
 class ApkAuditStore(context: Context) : SQLiteOpenHelper(
     context.applicationContext,

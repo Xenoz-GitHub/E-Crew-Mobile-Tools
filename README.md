@@ -52,7 +52,7 @@ sensitive forensic acquisition permissions.
 | Peer Messaging | Local peer-to-peer chat over LAN or Bluetooth with PBKDF2-HMAC-SHA256 key derivation and AES-GCM framing. | No external message relay. |
 | Field Utilities | QR and payload analysis, a real PTY terminal, Wi-Fi scanning and wardriving, LAN discovery, WPS inspection and Android 8.x WPS connection, and local PCAP capture. | Runtime permissions and, for packet capture, a local VPN consent prompt. |
 | Xairex | On-device assistant powered by a bundled SmolLM2 360M instruct model through llama.cpp. | Fully local inference; no prompt or completion leaves the device. |
-| GRIDSHOCK | An offline 8x8 endless block puzzle with deterministic piece generation, isolated storage, and synthesized audio. | No additional permissions. |
+| Games Hub / GRIDBLOCKS | Expandable offline game catalog. GRIDBLOCKS is an 8x8 block puzzle with textured glass blocks, lifted drag previews, animated fireworks, rainbow clear effects, three modes, local scores, and synthesized audio. | No additional permissions. |
 
 ## Requirements
 
@@ -144,7 +144,7 @@ distributing builds.
   notice; this is a platform limitation, not a device-permission issue.
 - Physical-device validation is still required for WPS handshakes, two-device
   messaging and remote support, real-device Shizuku operation, the root audit tier,
-  Xairex performance and memory use, and sustained GRIDSHOCK frame rates.
+  Xairex performance and memory use, and sustained GRIDBLOCKS frame rates.
 - The APK analyzer refuses inputs whose aggregate DEX payload exceeds 32 MiB and
   reports DEX string tables above 1 MiB as partially unreadable, rather than risking
   memory exhaustion.
@@ -159,5 +159,7 @@ distributing builds.
 
 No project-wide license is granted at this time. All rights are reserved. Third-party
 components retain their respective licenses, including the vendored llama.cpp tree
-under `llm/third_party/llama.cpp`. Review those terms before redistributing this
-repository or a built APK.
+under `llm/third_party/llama.cpp`. The GRIDBLOCKS Glass Arcade block atlas is adapted
+from the MIT-licensed Block Blast 2 generated-skin artwork; the attribution and full
+license text are in `docs/third-party/block-blast-2.md`. Review those terms before
+redistributing this repository or a built APK.

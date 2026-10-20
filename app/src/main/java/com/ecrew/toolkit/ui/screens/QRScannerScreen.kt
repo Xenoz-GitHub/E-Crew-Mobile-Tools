@@ -4,9 +4,14 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -14,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -68,11 +74,23 @@ fun QRScannerScreen(onOpenGames: () -> Unit = {}) {
                 Text("Analyze Input")
             }
         }
-        TextButton(
+        Button(
             onClick = onOpenGames,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(54.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF10283A),
+                contentColor = AccentInfo
+            ),
+            border = BorderStroke(1.dp, AccentInfo.copy(alpha = 0.65f))
         ) {
-            Text("Games hub - GRIDSHOCK", fontSize = 10.sp, color = AccentInfo)
+            Icon(Icons.Default.SportsEsports, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Games Hub", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("GridBlocks and more offline games", fontSize = 9.sp, color = MonoGray)
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null)
         }
         OutlinedTextField(
             value = manualText,

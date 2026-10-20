@@ -1,4 +1,4 @@
-package com.ecrew.toolkit.gridshock
+package com.ecrew.toolkit.gridblocks
 
 import java.util.ArrayDeque
 import java.util.Random
@@ -73,6 +73,8 @@ data class MoveResult(
     val overloadUsed: Boolean,
     val gameOver: Boolean,
     val clearedIndices: List<Int>,
+    val clearedRows: List<Int>,
+    val clearedColumns: List<Int>,
     val placedIndices: List<Int>
 )
 
@@ -197,6 +199,8 @@ class GameEngine(
             overloadUsed = overloadUsed,
             gameOver = gameOver,
             clearedIndices = outcome.indices,
+            clearedRows = outcome.rows,
+            clearedColumns = outcome.columns,
             placedIndices = placedIndices
         )
     }
@@ -219,7 +223,7 @@ class GameEngine(
         overloadArmed = false
     }
 
-    fun stateSnapshot(): GridshockSnapshot = GridshockSnapshot(
+    fun stateSnapshot(): GridBlocksSnapshot = GridBlocksSnapshot(
         mode = mode,
         seed = seed,
         board = board.copyCells(),
@@ -237,7 +241,7 @@ class GameEngine(
         allowRotation = allowRotation
     )
 
-    fun restore(snapshot: GridshockSnapshot) {
+    fun restore(snapshot: GridBlocksSnapshot) {
         require(snapshot.mode == mode && snapshot.seed == seed)
         board.restore(snapshot.board, snapshot.corruption)
         snapshot.tray.forEachIndexed { index, id ->
@@ -270,7 +274,7 @@ class GameEngine(
     }
 }
 
-data class GridshockSnapshot(
+data class GridBlocksSnapshot(
     val mode: Mode,
     val seed: Long,
     val board: IntArray,

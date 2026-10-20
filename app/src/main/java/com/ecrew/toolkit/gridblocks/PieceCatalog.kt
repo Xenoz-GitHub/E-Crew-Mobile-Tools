@@ -1,4 +1,4 @@
-package com.ecrew.toolkit.gridshock
+package com.ecrew.toolkit.gridblocks
 
 import kotlin.math.abs
 
@@ -81,17 +81,22 @@ object PieceCatalog {
 
     val byId: Map<String, Piece> = pieces.associateBy { it.id }
     val totalWeight: Int = pieces.sumOf { it.weight }
+    /**
+     * Matches the first six cells of the Glass Arcade atlas
+     * (res/drawable-nodpi/gridblocks_glass.png): red, yellow, green, cyan, blue,
+     * purple. The view falls back to these solid colours if the texture cannot load.
+     */
     val cellColors: List<Int> = listOf(
-        0xFF00E5FF.toInt(),
-        0xFF58D68D.toInt(),
-        0xFFF4D03F.toInt(),
-        0xFF9B59B6.toInt(),
-        0xFFFF6FAE.toInt(),
-        0xFFFF6B6B.toInt()
+        0xFFFF5A5F.toInt(),
+        0xFFFFC857.toInt(),
+        0xFF3DDC84.toInt(),
+        0xFF32D6E8.toInt(),
+        0xFF4C7DFF.toInt(),
+        0xFFB05CFF.toInt()
     )
 
     init {
-        require(pieces.size == 33) { "GRIDSHOCK needs exactly 33 catalog pieces" }
+        require(pieces.size == 33) { "GRIDBLOCKS needs exactly 33 catalog pieces" }
         require(pieces.map { it.id }.distinct().size == pieces.size) { "duplicate piece id" }
         require(totalWeight == 51) { "piece weights must total 51" }
     }

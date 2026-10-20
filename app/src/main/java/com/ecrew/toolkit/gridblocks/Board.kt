@@ -1,4 +1,4 @@
-package com.ecrew.toolkit.gridshock
+package com.ecrew.toolkit.gridblocks
 
 import java.util.Random
 
@@ -31,7 +31,11 @@ class Board {
 
     fun place(piece: Piece, col: Int, row: Int): Boolean {
         if (!canPlace(piece, col, row)) return false
-        piece.cells.forEach { cell -> cells[index(col + cell.col, row + cell.row)] = 1 }
+        // Store the piece colour with the occupied cell so the board keeps the
+        // colour of the piece that was placed instead of recolouring by position.
+        piece.cells.forEach { cell ->
+            cells[index(col + cell.col, row + cell.row)] = piece.colorIndex + 1
+        }
         return true
     }
 
@@ -122,7 +126,7 @@ class Board {
     fun copyCorruption(): IntArray = corruptionDepth.copyOf()
 
     fun restore(cellsValue: IntArray, corruption: IntArray) {
-        require(cellsValue.size == cells.size && corruption.size == corruption.size)
+        require(cellsValue.size == cells.size && corruption.size == corruptionDepth.size)
         cellsValue.copyInto(cells)
         corruption.copyInto(corruptionDepth)
     }
