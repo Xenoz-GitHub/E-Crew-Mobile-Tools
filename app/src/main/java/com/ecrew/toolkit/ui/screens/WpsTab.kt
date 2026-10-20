@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.wifi.WifiManager
 import android.provider.Settings
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,12 +15,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ecrew.toolkit.ai.AiIntake
@@ -42,13 +46,19 @@ import com.ecrew.toolkit.wifi.ApInfo
 import com.ecrew.toolkit.wifi.WifiKit
 import com.ecrew.toolkit.wps.SystemWpsEngine
 import com.ecrew.toolkit.wps.WpsAuditDb
+import com.ecrew.toolkit.wps.WpsConnectController
+import com.ecrew.toolkit.wps.WpsMethod
 import com.ecrew.toolkit.wps.WpsPhase
+import com.ecrew.toolkit.wps.WpsPinGenerator
+import com.ecrew.toolkit.wps.WpsPurpose
 import com.ecrew.toolkit.wps.WpsRateLimiter
 import com.ecrew.toolkit.wps.WpsRunController
+import com.ecrew.toolkit.wps.WpsSupport
 import com.ecrew.toolkit.wps.WpsText
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 /** One row of the feasibility matrix that must match the design note verbatim. */
 private data class LimitRow(val capability: String, val feasible: Boolean, val basis: String)
@@ -63,8 +73,8 @@ private val LIMIT_ROWS = listOf(
         "Algorithms derive PINs from BSSID; databases of 500+ vendor algorithms (Zhao, Belkin, Arcadyan, etc.) are available"
     ),
     LimitRow(
-        "Attempt connection via WPS PIN", true,
-        "WifiManager.startWps(WpsInfo, WpsCallback) is available on API 26"
+        "Attempt connection via WPS PIN", WpsSupport.available,
+        "WifiManager.startWps is available only on Android 8.x; client-mode WPS was removed in Android 9"
     ),
     LimitRow(
         "Retrieve the WPA/WPA2 password", false,
@@ -111,6 +121,9 @@ fun WpsTab(
     }
     val engine = remember(wifi) { wifi?.let { SystemWpsEngine(it) } }
     val audit = remember { WpsAuditDb(context.applicationContext) }
+    val connector = remember(engine, audit) {
+        engine?.let { WpsConnectController(engine = it, audit = audit) }
+    }
 
     var aps by remember { mutableStateOf(listOf<ApInfo>()) }
     var status by remember { mutableStateOf("Tap Scan to list WPS-enabled networks.") }
@@ -118,6 +131,7 @@ fun WpsTab(
     var limitsOpen by rememberSaveable { mutableStateOf(false) }
     var selected by remember { mutableStateOf<ApInfo?>(null) }
     var consent by remember { mutableStateOf(false) }
+    var connectPin by rememberSaveable { mutableStateOf("") }
     var phase by remember { mutableStateOf<WpsPhase?>(null) }
     var job by remember { mutableStateOf<Job?>(null) }
     var running by remember { mutableStateOf(false) }
@@ -151,7 +165,7 @@ fun WpsTab(
         }
     }
 
-    fun start(ap: ApInfo) {
+    fun startAudit(ap: ApInfo) {
         val wpsEngine = engine
         if (wpsEngine == null) {
             phase = WpsPhase.Stopped("Wi-Fi service unavailable on this device.")
@@ -162,6 +176,45 @@ fun WpsTab(
         job = scope.launch {
             try {
                 controller.run(ap.ssid, ap.bssid) { update -> phase = update }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                if (t is VirtualMachineError || t is ThreadDeath) throw t
+                Log.e("E-Crew/WPS", "WPS audit failed", t)
+                phase = WpsPhase.Stopped("WPS test failed (${t.javaClass.simpleName}).")
+            } finally {
+                running = false
+                job = null
+            }
+        }
+    }
+
+    fun startConnect(ap: ApInfo, method: WpsMethod) {
+        val wpsConnector = connector
+        if (wpsConnector == null) {
+            phase = WpsPhase.Stopped("Wi-Fi service unavailable on this device.", WpsPurpose.CONNECT)
+            return
+        }
+        if (!consent) {
+            phase = WpsPhase.Stopped(
+                "Confirm authorization before starting a WPS connection.",
+                WpsPurpose.CONNECT
+            )
+            return
+        }
+        running = true
+        job = scope.launch {
+            try {
+                wpsConnector.connect(ap.ssid, ap.bssid, method) { update -> phase = update }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                if (t is VirtualMachineError || t is ThreadDeath) throw t
+                Log.e("E-Crew/WPS", "WPS connection failed", t)
+                phase = WpsPhase.Stopped(
+                    "WPS connection failed (${t.javaClass.simpleName}).",
+                    WpsPurpose.CONNECT
+                )
             } finally {
                 running = false
                 job = null
@@ -183,6 +236,17 @@ fun WpsTab(
                 modifier = Modifier.padding(8.dp)
             )
         }
+        if (!WpsSupport.available) {
+            Spacer(Modifier.height(6.dp))
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2E1A16))) {
+                Text(
+                    WpsSupport.REMOVED_MESSAGE,
+                    fontSize = 10.sp,
+                    color = AccentBad,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+        }
         Spacer(Modifier.height(6.dp))
 
         TechnicalLimitsCard(limitsOpen) { limitsOpen = !limitsOpen }
@@ -202,14 +266,19 @@ fun WpsTab(
                 selected = selected == ap,
                 consent = consent,
                 running = running,
+                wpsSupported = WpsSupport.available,
+                connectPin = connectPin,
                 showTestForm = phase == null,
                 onToggleSelect = {
                     selected = if (selected == ap) null else ap
                     consent = false
+                    connectPin = ""
                     phase = null
                 },
                 onConsentChange = { consent = it },
-                onStart = { start(ap) }
+                onConnectPinChange = { connectPin = it },
+                onStartAudit = { startAudit(ap) },
+                onConnect = { method -> startConnect(ap, method) }
             )
         }
 
@@ -218,6 +287,7 @@ fun WpsTab(
             is WpsPhase.Testing -> TestingCard(current) { job?.cancel() }
             WpsPhase.Success -> SuccessCard { phase = null }
             is WpsPhase.Stopped -> StoppedCard(
+                title = if (current.purpose == WpsPurpose.CONNECT) "Connection stopped" else "Test stopped",
                 message = current.message,
                 contextBody = buildString {
                     selected?.let { ap ->
@@ -231,7 +301,13 @@ fun WpsTab(
                         append(ap.security)
                         append(", WPS-enabled\n")
                     }
-                    append("WPS vulnerability test outcome: ")
+                    append(
+                        if (current.purpose == WpsPurpose.CONNECT) {
+                            "WPS connection outcome: "
+                        } else {
+                            "WPS vulnerability test outcome: "
+                        }
+                    )
                     append(current.message)
                 },
                 onClear = { phase = null }
@@ -287,10 +363,14 @@ private fun WpsNetworkCard(
     selected: Boolean,
     consent: Boolean,
     running: Boolean,
+    wpsSupported: Boolean,
+    connectPin: String,
     showTestForm: Boolean,
     onToggleSelect: () -> Unit,
     onConsentChange: (Boolean) -> Unit,
-    onStart: () -> Unit
+    onConnectPinChange: (String) -> Unit,
+    onStartAudit: () -> Unit,
+    onConnect: (WpsMethod) -> Unit
 ) {
     Card(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
         Column(Modifier.padding(8.dp)) {
@@ -309,8 +389,11 @@ private fun WpsNetworkCard(
                     )
                     Text("${ap.security}   WPS-enabled", fontSize = 10.sp, color = AccentInfo)
                 }
-                TextButton(onClick = onToggleSelect, enabled = !running) {
-                    Text(if (selected) "Cancel" else "Test Vulnerability", fontSize = 11.sp)
+                TextButton(onClick = onToggleSelect, enabled = !running && wpsSupported) {
+                    Text(
+                        if (selected) "Cancel" else if (wpsSupported) "Test / Connect" else "Unavailable",
+                        fontSize = 11.sp
+                    )
                 }
             }
             if (selected && showTestForm) {
@@ -319,7 +402,56 @@ private fun WpsNetworkCard(
                     Checkbox(checked = consent, onCheckedChange = onConsentChange)
                     Text(WpsText.CONSENT, fontSize = 11.sp)
                 }
-                Button(onClick = onStart, enabled = consent) {
+
+                if (wpsSupported) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(WpsText.CONNECT_TITLE, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(WpsText.MANUAL_PIN_HELP, fontSize = 9.sp, color = MonoGray)
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = connectPin,
+                        onValueChange = { raw ->
+                            onConnectPinChange(raw.filter { it in '0'..'9' }.take(8))
+                        },
+                        label = { Text("Router WPS PIN") },
+                        placeholder = { Text("8 digits") },
+                        singleLine = true,
+                        enabled = !running,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (connectPin.length == 8 && !WpsPinGenerator.isValidPin(connectPin)) {
+                        Text(
+                            "The PIN checksum is invalid. Check the router label.",
+                            fontSize = 9.sp,
+                            color = AccentBad
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Button(
+                        onClick = { onConnect(WpsMethod.Pin(connectPin)) },
+                        enabled = consent && !running && WpsPinGenerator.isValidPin(connectPin)
+                    ) {
+                        Text("Connect with PIN", fontSize = 11.sp)
+                    }
+                    TextButton(
+                        onClick = { onConnect(WpsMethod.PushButton) },
+                        enabled = consent && !running
+                    ) {
+                        Text("WPS push button", fontSize = 11.sp)
+                    }
+                    Text(WpsText.PBC_HELP, fontSize = 9.sp, color = MonoGray)
+                }
+
+                Spacer(Modifier.height(6.dp))
+                Text("Vulnerability audit", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(
+                    "Generates BSSID-derived Zhao and Belkin PINs plus common defaults. " +
+                        "The audit is rate-limited to five attempts.",
+                    fontSize = 9.sp,
+                    color = MonoGray
+                )
+                Button(onClick = onStartAudit, enabled = consent && wpsSupported && !running) {
                     Text("Start Test")
                 }
                 Text(
@@ -335,19 +467,36 @@ private fun WpsNetworkCard(
 
 @Composable
 private fun TestingCard(phase: WpsPhase.Testing, onStop: () -> Unit) {
+    val connecting = phase.purpose == WpsPurpose.CONNECT
     Card(
         Modifier.fillMaxWidth().padding(top = 6.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF16262E))
     ) {
         Column(Modifier.padding(10.dp)) {
-            Text("WPS PIN audit running", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(
+                if (connecting) "WPS connection in progress" else "WPS PIN audit running",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
             Spacer(Modifier.height(2.dp))
-            Text(phase.pin, fontFamily = FontFamily.Monospace, fontSize = 22.sp)
-            Text("Algorithm: ${phase.algorithm}", fontSize = 10.sp, color = MonoGray)
-            Text("Attempt ${phase.attempt} of ${phase.total}", fontSize = 12.sp)
+            Text(
+                if (phase.pin == "PBC") "Push button" else phase.pin,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 22.sp
+            )
+            Text(
+                if (connecting) "Method: ${phase.algorithm}" else "Algorithm: ${phase.algorithm}",
+                fontSize = 10.sp,
+                color = MonoGray
+            )
+            if (!connecting) {
+                Text("Attempt ${phase.attempt} of ${phase.total}", fontSize = 12.sp)
+            }
             Text(
                 if (phase.waiting) {
                     "Next attempt in ${(phase.waitRemainingMs + 999) / 1000} s"
+                } else if (connecting) {
+                    "Waiting for the router to accept the WPS request..."
                 } else {
                     "Waiting for the router to answer..."
                 },
@@ -361,7 +510,11 @@ private fun TestingCard(phase: WpsPhase.Testing, onStop: () -> Unit) {
                 Button(onClick = onStop) { Text("Stop") }
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Leaving this tab stops the test after the current attempt.",
+                    if (connecting) {
+                        "Leaving this tab cancels the WPS connection."
+                    } else {
+                        "Leaving this tab stops the test after the current attempt."
+                    },
                     fontSize = 9.sp,
                     color = MonoGray,
                     modifier = Modifier.weight(1f)
@@ -400,14 +553,19 @@ private fun SuccessCard(onClear: () -> Unit) {
 }
 
 @Composable
-private fun StoppedCard(message: String, contextBody: String, onClear: () -> Unit) {
+private fun StoppedCard(
+    title: String,
+    message: String,
+    contextBody: String,
+    onClear: () -> Unit
+) {
     val context = LocalContext.current
     Card(
         Modifier.fillMaxWidth().padding(top = 6.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF2E1A16))
     ) {
         Column(Modifier.padding(10.dp)) {
-            Text("Test stopped", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AccentWarn)
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = AccentWarn)
             Spacer(Modifier.height(2.dp))
             Text(message, fontSize = 11.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {

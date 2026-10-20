@@ -50,7 +50,7 @@ sensitive forensic acquisition permissions.
 | Network Interception | Loopback HTTP CONNECT proxy for operator-run upstream tools, redacted in-memory request log, foreground service, consent gate, and inert Frida guidance. | Explicit consent is required. Global-proxy changes require Shizuku. TLS is never intercepted or decrypted. |
 | Remote Support | Consent-based remote agent over LAN or Bluetooth with session auditing and an in-app agent handoff. | The target device must install the agent and approve the session. |
 | Peer Messaging | Local peer-to-peer chat over LAN or Bluetooth with PBKDF2-HMAC-SHA256 key derivation and AES-GCM framing. | No external message relay. |
-| Field Utilities | QR and payload analysis, a real PTY terminal, Wi-Fi scanning and wardriving, LAN discovery, WPS inspection, and local PCAP capture. | Runtime permissions and, for packet capture, a local VPN consent prompt. |
+| Field Utilities | QR and payload analysis, a real PTY terminal, Wi-Fi scanning and wardriving, LAN discovery, WPS inspection and Android 8.x WPS connection, and local PCAP capture. | Runtime permissions and, for packet capture, a local VPN consent prompt. |
 | Xairex | On-device assistant powered by a bundled SmolLM2 360M instruct model through llama.cpp. | Fully local inference; no prompt or completion leaves the device. |
 | GRIDSHOCK | An offline 8x8 endless block puzzle with deterministic piece generation, isolated storage, and synthesized audio. | No additional permissions. |
 
@@ -66,6 +66,24 @@ sensitive forensic acquisition permissions.
 The application targets API 28 to preserve the legacy storage and Bluetooth behavior
 the toolkit was designed around. It is a sideloaded tool and is not intended for
 Google Play distribution.
+
+## WPS on Android
+
+Android exposes client-mode WPS only on Android 8.x. Android 9 removed the
+`WifiManager.startWps` path, so the Wi-Fi Suite disables WPS connection controls on
+newer releases and shows an explicit unsupported notice instead of failing silently.
+
+On Android 8.x, the WPS tab provides two connection flows for a network you own:
+
+- **Router PIN** — enter the 8-digit PIN printed on the router or configured in its
+  WPS settings. The app validates the standard WPS checksum before starting.
+- **Push button** — press the router's physical WPS button, then start push-button
+  mode within the router's pairing window.
+
+The separate vulnerability audit generates BSSID-derived Zhao and Belkin candidates
+plus common defaults, with a 35-second minimum between attempts and an automatic stop
+after five consecutive failures. A successful WPS handshake saves the network on the
+device; it does not recover the WPA/WPA2 passphrase on a non-rooted device.
 
 ## Build
 
@@ -122,6 +140,8 @@ distributing builds.
 
 ## Known Limitations
 
+- WPS client mode is available only on Android 8.x. Android 9+ displays an unsupported
+  notice; this is a platform limitation, not a device-permission issue.
 - Physical-device validation is still required for WPS handshakes, two-device
   messaging and remote support, real-device Shizuku operation, the root audit tier,
   Xairex performance and memory use, and sustained GRIDSHOCK frame rates.

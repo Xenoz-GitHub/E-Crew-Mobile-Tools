@@ -76,6 +76,17 @@ object WpsPinGenerator {
         return (10 - accum % 10) % 10
     }
 
+    /**
+     * True when [pin] is an 8-digit WPS PIN with the standard checksum. Router labels and
+     * generated candidates both follow this format; rejecting malformed input before a
+     * startWps call avoids an avoidable router-side failure.
+     */
+    fun isValidPin(pin: String): Boolean {
+        if (pin.length != 8 || pin.any { it !in '0'..'9' }) return false
+        val sevenDigits = pin.substring(0, 7).toInt()
+        return pin.last() - '0' == wpsChecksum(sevenDigits)
+    }
+
     /** Applies the per-algorithm candidate cap. Visible for tests. */
     internal fun capCandidates(raw: List<String>): List<String> = raw.take(MAX_PER_ALGORITHM)
 

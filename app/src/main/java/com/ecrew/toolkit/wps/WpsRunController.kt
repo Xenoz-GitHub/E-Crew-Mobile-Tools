@@ -1,5 +1,6 @@
 package com.ecrew.toolkit.wps
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -11,7 +12,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 
-/** UI-agnostic state emitted by [WpsRunController.run]. */
+/** Distinguishes a vulnerability audit from a one-shot connection to the operator's network. */
+enum class WpsPurpose { AUDIT, CONNECT }
+
+/** UI-agnostic state emitted by [WpsRunController.run] and [WpsConnectController.connect]. */
 sealed interface WpsPhase {
     /** An attempt is in flight ([waiting] = false) or the run is waiting out the gap. */
     data class Testing(
@@ -20,14 +24,18 @@ sealed interface WpsPhase {
         val attempt: Int,
         val total: Int,
         val waiting: Boolean,
-        val waitRemainingMs: Long
+        val waitRemainingMs: Long,
+        val purpose: WpsPurpose = WpsPurpose.AUDIT
     ) : WpsPhase
 
     /** The registrar accepted the PIN; the network is saved on the device. */
     object Success : WpsPhase
 
     /** The run ended without success; [message] is operator-facing. */
-    data class Stopped(val message: String) : WpsPhase
+    data class Stopped(
+        val message: String,
+        val purpose: WpsPurpose = WpsPurpose.AUDIT
+    ) : WpsPhase
 }
 
 /** Operator-facing strings, single source for UI and audit. */
@@ -42,6 +50,14 @@ object WpsText {
     const val SUCCESS = "Connected via WPS. The network is now saved on this device. To find the " +
         "password, check the router's admin panel or label."
     const val CAP_NOTE = "candidate cap reached"
+    const val CONNECT_TITLE = "Connect to my Wi-Fi"
+    const val MANUAL_PIN_HELP = "Enter the 8-digit WPS PIN printed on the router label or in its " +
+        "WPS settings. This is a one-time connection attempt, not a PIN audit."
+    const val PBC_HELP = "Press the router's physical WPS button, then start push-button mode " +
+        "within two minutes."
+    const val UNSUPPORTED = "WPS client mode is not available on Android 9 or later."
+    const val NO_RESPONSE = "No WPS response from the router before the timeout."
+    const val INVALID_PIN = "Enter a valid 8-digit WPS PIN."
 }
 
 /**
@@ -67,6 +83,8 @@ class WpsRunController(
 
         /** UI countdown tick while waiting out the gap. */
         const val UI_TICK_MS = 500L
+
+        private const val TAG = "E-Crew/WPS"
     }
 
     suspend fun run(ssid: String, bssid: String, onPhase: (WpsPhase) -> Unit) {
@@ -123,6 +141,11 @@ class WpsRunController(
                             WpsAuditEntry.RESULT_SUCCESS, false, capNote
                         )
                         onPhase(WpsPhase.Success)
+                        return
+                    }
+
+                    is WpsOutcome.Unsupported -> {
+                        onPhase(WpsPhase.Stopped(outcome.detail))
                         return
                     }
 
@@ -193,27 +216,34 @@ class WpsRunController(
         note: String?
     ) {
         // NonCancellable: the row for a completed attempt must land even when the owner
-        // already left the screen.
+        // already left the screen. A local storage failure must never take down the WPS
+        // screen or the process.
         withContext(NonCancellable + Dispatchers.IO) {
-            audit.record(
-                WpsAuditEntry(
-                    ssid = ssid,
-                    bssid = bssid,
-                    pinTested = pin,
-                    algorithm = algorithm,
-                    result = result,
-                    lockoutDetected = lockoutDetected,
-                    consentText = WpsText.CONSENT,
-                    note = note
+            try {
+                audit.record(
+                    WpsAuditEntry(
+                        ssid = ssid,
+                        bssid = bssid,
+                        pinTested = pin,
+                        algorithm = algorithm,
+                        result = result,
+                        lockoutDetected = lockoutDetected,
+                        consentText = WpsText.CONSENT,
+                        note = note
+                    )
                 )
-            )
+            } catch (e: Exception) {
+                Log.e(TAG, "Unable to write WPS audit row", e)
+            }
         }
     }
 
     private suspend fun awaitAttempt(bssid: String, pin: String): AttemptResult {
         val outcome = withTimeoutOrNull(attemptTimeoutMs) {
             suspendCancellableCoroutine { cont ->
-                engine.start(bssid, pin) { result -> if (cont.isActive) cont.resume(result) }
+                engine.start(bssid, WpsMethod.Pin(pin)) { result ->
+                    if (cont.isActive) cont.resume(result)
+                }
                 cont.invokeOnCancellation { engine.cancel() }
             }
         }
