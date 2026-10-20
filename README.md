@@ -22,6 +22,23 @@ The published evaluation build is signed with the Android debug keystore. Verify
 the SHA-256 checksum in the release notes before installing, and enable
 installation from unknown sources on the Android device if required.
 
+### Play Protect
+
+E-Crew is distributed outside Google Play and declares permissions used by its
+forensic acquisition features. Google Play Protect may therefore warn about or
+block the installation. If you downloaded the APK from this repository and
+verified its SHA-256 checksum, you can proceed:
+
+1. If available, select **More details → Install anyway**.
+2. If that option is missing, temporarily pause scanning: **Play Store → profile
+   → Play Protect → Settings → Scan apps with Play Protect → Pause**.
+3. Install the APK, then immediately re-enable Play Protect.
+
+Only do this for a verified build from this repository. Do not disable Play
+Protect permanently. On managed devices, follow your organization's installation
+policy. If installation is still blocked, use ADB or a build without the
+sensitive forensic acquisition permissions.
+
 ## Capabilities
 
 | Area | Description | Access |
